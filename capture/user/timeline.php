@@ -53,6 +53,7 @@ if (!empty($list_name)) { // instead of specying usernames, you can also fetch u
 // you can also retrieve the users from a set of tweets
 if (empty($user_ids)) {
     $q = $dbh->prepare("SELECT DISTINCT(from_user_name) FROM " . $bin_name . "_tweets");
+//    $q = $dbh->prepare("SELECT DISTINCT(from_user_name) FROM " . $bin_name . "_tweets UNION SELECT DISTINCT(to_user) FROM " . $bin_name . "_mentions");
     if ($q->execute()) {
         $user_ids = $q->fetchAll(PDO::FETCH_COLUMN, 0);
     }
@@ -93,17 +94,17 @@ function get_timeline($user_id, $type, $max_id = null) {
 
     $ratefree--;
     if ($ratefree < 1 || $ratefree % 10 == 0) {
-	$keyinfo = getRESTKey($current_key, 'statuses', 'user_timeline');
-	$current_key = $keyinfo['key'];
-	$ratefree = $keyinfo['remaining'];
+        $keyinfo = getRESTKey($current_key, 'statuses', 'user_timeline');
+        $current_key = $keyinfo['key'];
+        $ratefree = $keyinfo['remaining'];
     }
 
     $tmhOAuth = new tmhOAuth(array(
-                'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
-                'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
-                'token' => $twitter_keys[$current_key]['twitter_user_token'],
-                'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
-            ));
+        'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+        'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+        'token' => $twitter_keys[$current_key]['twitter_user_token'],
+        'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+    ));
     $params = array(
         'count' => 200,
         'trim_user' => false,
@@ -138,8 +139,16 @@ function get_timeline($user_id, $type, $max_id = null) {
             $t = new Tweet();
             $t->fromJSON($tweet);
             $tweet_ids[] = $t->id;
+
+            // TODO récupération retweets
+            // get_retweets($t->id);
+            // TODO récupération likes
+            // TODO récupération réponses
+
             if (!$t->isInBin($bin_name)) {
                 $tweetQueue->push($t, $bin_name);
+                $u = new User($tweet["user"]);
+                $u->save($dbh, $bin_name);
                 print ".";
                 if ($tweetQueue->length() > 100)
                     $tweetQueue->insertDB();

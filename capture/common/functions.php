@@ -88,7 +88,7 @@ function create_error_logs() {
         $insert = $dbh->prepare($sql);
         $insert->execute();
     }
-    
+
     // When creating tables for a fresh install, set tcat_status variable to indicate we have up-to-date ratelimit, gap tables and are capturing in the proper timezone
     // Practically, the purpose of this insert statement is for common/upgrade.php to know we do not need to upgrade the above table.
 
@@ -162,6 +162,34 @@ function create_bin($bin_name, $dbh = false) {
 
 
 
+        $sql = "CREATE TABLE IF NOT EXISTS " . quoteIdent($bin_name . "_likes") . " (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `tweet_id` bigint(20) NOT NULL,
+            `observed_at` datetime,
+            `user_liking_id` bigint,
+            PRIMARY KEY (`id`),
+                    KEY `observed_at` (`observed_at`),
+                    KEY `tweet_id` (`tweet_id`),
+                    KEY `user_liking_id` (`user_liking_id`)
+            ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4";
+
+        $create_likes = $dbh->prepare($sql);
+        $create_likes->execute();
+
+        $sql = "CREATE TABLE IF NOT EXISTS " . quoteIdent($bin_name . "_retweets") . " (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `tweet_id` bigint(20) NOT NULL,
+            `observed_at` datetime,
+            `user_retweeting_id` bigint,
+            PRIMARY KEY (`id`),
+                    KEY `observed_at` (`observed_at`),
+                    KEY `tweet_id` (`tweet_id`),
+                    KEY `user_retweeting_id` (`user_retweeting_id`)
+            ) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4";
+
+        $create_retweets = $dbh->prepare($sql);
+        $create_retweets->execute();
+
         $sql = "CREATE TABLE IF NOT EXISTS " . quoteIdent($bin_name . "_mentions") . " (
             `id` int(11) NOT NULL AUTO_INCREMENT,
             `tweet_id` bigint(20) NOT NULL,
@@ -182,45 +210,70 @@ function create_bin($bin_name, $dbh = false) {
         $create_mentions = $dbh->prepare($sql);
         $create_mentions->execute();
 
+        $sql = "CREATE TABLE IF NOT EXISTS " . quoteIdent($bin_name . "_users") . " (
+            `name` varchar(255),
+            `id` bigint NOT NULL,
+            `lang` varchar(16),
+            `tweetcount` int(11),
+            `followercount` int(11),
+            `friendcount` int(11),
+            `listed` int(11),
+            `realname` varchar(255),
+            `utcoffset` int(11),
+            `timezone` varchar(255),
+            `description` varchar(255),
+            `url` varchar(2048),
+            `verified` bool DEFAULT false,
+            `profile_image_url` varchar(400),
+            `created_at` datetime,
+            `withheld_scope` varchar(32),
+            `favourites_count` int(11),
+            `location` varchar(64),
+            PRIMARY KEY (`id`)
+                    ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4";
+
+        $create_users = $dbh->prepare($sql);
+        $create_users->execute();
+
         $sql = "CREATE TABLE IF NOT EXISTS " . quoteIdent($bin_name . "_tweets") . " (
             `id` bigint(20) NOT NULL,
-                    `created_at` datetime NOT NULL,
-                    `from_user_name` varchar(255) NOT NULL,
-                    `from_user_id` bigint NOT NULL,
-                    `from_user_lang` varchar(16),
-                    `from_user_tweetcount` int(11),
-                    `from_user_followercount` int(11),
-                    `from_user_friendcount` int(11),
-                    `from_user_listed` int(11),
-                    `from_user_realname` varchar(255),
-                    `from_user_utcoffset` int(11),
-                    `from_user_timezone` varchar(255),
-                    `from_user_description` varchar(255),
-                    `from_user_url` varchar(2048),
-                    `from_user_verified` bool DEFAULT false,
-                    `from_user_profile_image_url` varchar(400),
-                    `from_user_created_at` datetime,
-                    `from_user_withheld_scope` varchar(32),
-                    `from_user_favourites_count` int(11),
-                    `source` varchar(512),
-                    `location` varchar(64),
-                    `geo_lat` float(10,6),
-                    `geo_lng` float(10,6),
-                    `text` varchar(255) NOT NULL,
-                    `retweet_id` bigint(20),
-                    `retweet_count` int(11),
-                    `favorite_count` int(11),
-                    `to_user_id` bigint,
-                    `to_user_name` varchar(255),
-                    `in_reply_to_status_id` bigint(20),
-                    `filter_level` varchar(6),
-                    `lang` varchar(16),
-                    `possibly_sensitive` tinyint(1),
-                    `quoted_status_id` bigint,
-                    `truncated` tinyint(1),
-                    `withheld_copyright` tinyint(1),
-                    `withheld_scope` varchar(32),
-                    PRIMARY KEY (`id`),
+            `created_at` datetime NOT NULL,
+            `from_user_name` varchar(255) NOT NULL,
+            `from_user_id` bigint NOT NULL,
+            `from_user_lang` varchar(16),
+            `from_user_tweetcount` int(11),
+            `from_user_followercount` int(11),
+            `from_user_friendcount` int(11),
+            `from_user_listed` int(11),
+            `from_user_realname` varchar(255),
+            `from_user_utcoffset` int(11),
+            `from_user_timezone` varchar(255),
+            `from_user_description` varchar(255),
+            `from_user_url` varchar(2048),
+            `from_user_verified` bool DEFAULT false,
+            `from_user_profile_image_url` varchar(400),
+            `from_user_created_at` datetime,
+            `from_user_withheld_scope` varchar(32),
+            `from_user_favourites_count` int(11),
+            `source` varchar(512),
+            `location` varchar(64),
+            `geo_lat` float(10,6),
+            `geo_lng` float(10,6),
+            `text` varchar(255) NOT NULL,
+            `retweet_id` bigint(20),
+            `retweet_count` int(11),
+            `favorite_count` int(11),
+            `to_user_id` bigint,
+            `to_user_name` varchar(255),
+            `in_reply_to_status_id` bigint(20),
+            `filter_level` varchar(6),
+            `lang` varchar(16),
+            `possibly_sensitive` tinyint(1),
+            `quoted_status_id` bigint,
+            `truncated` tinyint(1),
+            `withheld_copyright` tinyint(1),
+            `withheld_scope` varchar(32),
+            PRIMARY KEY (`id`),
                     KEY `created_at` (`created_at`),
                     KEY `from_user_created_at` (`from_user_created_at`),
                     KEY `from_user_withheld_scope` (`from_user_withheld_scope`),
@@ -609,7 +662,7 @@ function ratelimit_report_problem() {
                 $result = mysql_query($sql);
                 global $mail_to;
                 mail($mail_to, 'DMI-TCAT rate limit has been reached (server: ' . getHostName() . ')', 'The script running the ' . CAPTURE . ' query has hit a rate limit while talking to the Twitter API. Twitter is not allowing you to track more than 1% of its total traffic at any time. This means that the number of tweets exceeding the barrier are being dropped. Consider reducing the size of your query bins and reducing the number of terms and users you are tracking.' . "\n\n" .
-                        'This may be a temporary or a structural problem. Please look at the webinterface for more details. Rate limit statistics on the website are historic, however. Consider this message indicative of a current issue. This e-mail will not be repeated for at least ' . RATELIMIT_MAIL_HOURS . ' hours.', 'From: no-reply@dmitcat');
+                    'This may be a temporary or a structural problem. Please look at the webinterface for more details. Rate limit statistics on the website are historic, however. Consider this message indicative of a current issue. This e-mail will not be repeated for at least ' . RATELIMIT_MAIL_HOURS . ' hours.', 'From: no-reply@dmitcat');
             }
         }
     }
@@ -620,7 +673,7 @@ function toDateTime($unixTimestamp) {
 }
 
 /*
- * Inform controller a task wants to update its queries 
+ * Inform controller a task wants to update its queries
  */
 
 function web_reload_config_role($role) {
@@ -704,8 +757,8 @@ function getGitLocal() {
         $gitrev = `$gitcmd`;
         $branch = rtrim($gitrev);
         return array( 'branch' => $branch,
-                      'commit' => $commit,
-                      'mesg' => $mesg );
+            'commit' => $commit,
+            'mesg' => $mesg );
     }
     return false;
 }
@@ -776,11 +829,11 @@ function getGitRemote($compare_local_commit = '', $branch = 'master') {
         return false;
     }
     return array( 'commit' => $commit,
-                  'mesg' => $mesg,
-                  'url' => $url,
-                  'required' => $required,
-                  'date' => $date,
-                );
+        'mesg' => $mesg,
+        'url' => $url,
+        'required' => $required,
+        'date' => $date,
+    );
 }
 
 function getActivePhrases() {
@@ -851,10 +904,10 @@ function geobinsActive() {
 
 function coordinatesInsideBoundingBox($point_lng, $point_lat, $sw_lng, $sw_lat, $ne_lng, $ne_lat) {
     $boxwkt = 'POLYGON((' . $sw_lng . ' ' . $sw_lat . ', '
-            . $sw_lng . ' ' . $ne_lat . ', '
-            . $ne_lng . ' ' . $ne_lat . ', '
-            . $ne_lng . ' ' . $sw_lat . ', '
-            . $sw_lng . ' ' . $sw_lat . '))';
+        . $sw_lng . ' ' . $ne_lat . ', '
+        . $ne_lng . ' ' . $ne_lat . ', '
+        . $ne_lng . ' ' . $sw_lat . ', '
+        . $sw_lng . ' ' . $sw_lat . '))';
     $pointwkt = 'POINT(' . $point_lng . ' ' . $point_lat . ')';
     $geobox = geoPHP::load($boxwkt, 'wkt');
     $geopoint = geoPHP::load($pointwkt, 'wkt');
@@ -885,7 +938,7 @@ function getActiveLocationsImploded() {
 
 /*
  * Explode a geo location query string to an associative array of arrays
- * 
+ *
  * (0) => array ( sw_lng => ..
  *                sw_lat => ..
  *                ne_lng => ..
@@ -1173,10 +1226,10 @@ function capture_signal_handler_term($signo) {
 }
 
 /**
- * 
+ *
  * Tweet entity
  * Based on Twitter API 1.1
- * 
+ *
  */
 class Tweet {
 
@@ -1380,7 +1433,7 @@ class Tweet {
             /* running in compatibility mode with full text in extra structure (default for streaming API) */
             $full_text = $data["extended_tweet"]["full_text"];
         }
-        
+
         $store_text = $full_text;
         if (isset($data["retweeted_status"])) {
             /*
@@ -1470,8 +1523,8 @@ class Tweet {
             array_key_exists('media', $data["extended_entities"])) {
             $search_image_array = $data['extended_entities']['media'];
         } else if (!array_key_exists('extended_entities', $data) &&
-                   array_key_exists('entities', $data) &&
-                   array_key_exists('media', $data["entities"])) {
+            array_key_exists('entities', $data) &&
+            array_key_exists('media', $data["entities"])) {
             // Extract the photo data from the media[] array (which contains only a single item)
             // At this moment only the Search API does not return extended_entities
             $search_image_array = $data['entities']['media'];
@@ -1531,6 +1584,7 @@ class Tweet {
     // maps the users, mentions and hashtags data in the object to their database table fields
     // this function must be called at the end of the fromJSON/fromGnip and other from-functions
     function fromComplete() {
+        global $bin_name, $dbh;
 
         if ($this->hashtags) {
             foreach ($this->hashtags as $hashtag) {
@@ -1549,6 +1603,9 @@ class Tweet {
                 $mention->from_user_id = $this->from_user_id;
                 $mention->to_user = $mention->screen_name;
                 $mention->to_user_id = $mention->id_str;
+                // ajout de l'utilisateur mentionné
+                $u = new User($mention->to_user_id, $bin_name);
+                $u->save($dbh, $bin_name);
             }
         }
 
@@ -1626,6 +1683,219 @@ class Tweet {
         $dbh = null;
     }
 
+}
+
+/**
+ *
+ * User entity
+ * Based on Twitter API 1.1
+ *
+ */
+class User {
+
+    private $name;
+    private $id;
+    private $lang;
+    private $tweetcount;
+    private $followercount;
+    private $friendcount;
+    private $listed;
+    private $realname;
+    private $utcoffset;
+    private $timezone;
+    private $description;
+    private $url;
+    private $verified;
+    private $profile_image_url;
+    private $created_at;
+    private $withheld_scope;
+    private $favourites_count;
+    private $location;
+
+    public function __construct($data_or_id, $bin_name) {
+        if (is_numeric($data_or_id)) {
+            $this->id = $data_or_id;
+            if (!$this->isInBin($bin_name)) {
+                $this->getUserObject();
+            }
+        } else {
+            $this->fromJSON($data_or_id);
+        }
+    }
+
+    // Map Twitter API result object to our database table format
+    public function fromJSON($data) {
+        $this->name = $data["screen_name"];
+        $this->id = $data["id_str"];
+        $this->lang = $data["lang"];
+        $this->tweetcount = $data["statuses_count"];
+        $this->followercount = $data["followers_count"];
+        $this->friendcount = $data["friends_count"];
+        $this->listed = $data["listed_count"];
+        $this->realname = $data["name"];
+        $this->utcoffset = $data["utc_offset"];
+        $this->timezone = $data["time_zone"];
+        $this->description = $data["description"];
+        $this->url = $data["url"];
+        $this->verified = $data["verified"];
+        $this->profile_image_url = $data["profile_image_url"];
+        $this->created_at = date("Y-m-d H:i:s", strtotime($data["created_at"]));
+        if (isset($data["withheld_scope"])) {
+            $this->withheld_scope = $data["withheld_scope"];
+        }
+        $this->favourites_count = $data["favourites_count"];
+        $this->location = $data["location"];
+    }
+
+    // checks whether this User is in a particular bin in the database
+    function isInBin($bin_name) {
+        $dbh = pdo_connect();
+        $query = "SELECT EXISTS(SELECT 1 FROM " . quoteIdent($bin_name . "_users") . " WHERE id = " . $this->id . ")";
+        $test = $dbh->prepare($query);
+        $test->execute();
+        $row = $test->fetch();
+        $dbh = null;
+        return $row[0];
+    }
+
+    // TODO
+    // delete a User from a bin
+    function deleteFromBin($bin_name) {
+        $dbh = pdo_connect();
+        $query = "DELETE FROM " . quoteIdent($bin_name . "_users") . " WHERE id = " . $this->id;
+        $run = $dbh->prepare($query);
+        $run->execute();
+//        $exts = array ( 'hashtags', 'mentions', 'urls', 'places', 'withheld', 'media' );
+//        foreach ($exts as $ext) {
+//            $query = "SHOW TABLES LIKE '" . $bin_name . '_' . $ext . "'";
+//            $run = $dbh->prepare($query);
+//            $run->execute();
+//            if ($run->rowCount() > 0) {
+//                $query = "DELETE FROM " . quoteIdent($bin_name . '_' . $ext) . " WHERE tweet_id = " . $this->id;
+//                $run = $dbh->prepare($query);
+//                $run->execute();
+//            }
+//        }
+        $dbh = null;
+    }
+
+    public function save(PDO $dbh, $bin_name)
+    {
+        global $retries, $i;
+
+        if (!$this->isInBin($bin_name)) {
+            $q = $dbh->prepare(
+                "INSERT INTO " . $bin_name . '_users' . "
+				(id, name, lang, tweetcount, followercount, friendcount, listed, realname, utcoffset, timezone, description, url, verified, profile_image_url, created_at, withheld_scope, favourites_count, location)
+				VALUES 
+				(:id, :name, :lang, :tweetcount, :followercount, :friendcount, :listed, :realname, :utcoffset, :timezone, :description, :url, :verified, :profile_image_url, :created_at, :withheld_scope, :favourites_count, :location);");
+            $q->bindParam(":id", $this->id, PDO::PARAM_INT); // @otod id_str?
+            $q->bindParam(":name", $this->name, PDO::PARAM_STR);
+            $q->bindParam(":lang", $this->lang, PDO::PARAM_STR);
+            $q->bindParam(":tweetcount", $this->tweetcount, PDO::PARAM_INT);
+            $q->bindParam(':followercount', $this->followercount, PDO::PARAM_INT);
+            $q->bindParam(':friendcount', $this->friendcount, PDO::PARAM_INT);
+            $q->bindParam(':listed', $this->listed, PDO::PARAM_INT);
+            $q->bindParam(":realname", $this->realname, PDO::PARAM_STR);
+            $q->bindParam(":utcoffset", $this->utcoffset, PDO::PARAM_INT);
+            $q->bindParam(":timezone", $this->timezone, PDO::PARAM_STR);
+            $q->bindParam(':description', $this->description, PDO::PARAM_STR);
+            $q->bindParam(':url', $this->url, PDO::PARAM_STR);
+            $q->bindParam(':verified', $this->verified, PDO::PARAM_BOOL);
+            $q->bindParam(":profile_image_url", $this->profile_image_url, PDO::PARAM_STR);
+            $q->bindParam(":created_at", $this->created_at, PDO::PARAM_STR);
+            $q->bindParam(":withheld_scope", $this->withheld_scope, PDO::PARAM_STR);
+            $q->bindParam(':favourites_count', $this->favourites_count, PDO::PARAM_INT);
+            $q->bindParam(':location', $this->location, PDO::PARAM_STR);
+            $q->execute();
+        }
+    }
+
+    function getUserObject() {
+        global $twitter_keys, $current_key, $retries, $i;
+
+        $keyinfo = getRESTKey(0);
+        $current_key = $keyinfo['key'];
+        $ratefree = $keyinfo['remaining'];
+
+        print "\ncurrent key $current_key ratefree $ratefree\n";
+
+        $tmhOAuth = new tmhOAuth(array(
+            'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+            'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+            'token' => $twitter_keys[$current_key]['twitter_user_token'],
+            'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+        ));
+
+        if ($ratefree <= 0 || $ratefree % 10 == 0) {
+            print "\n";
+            $keyinfo = getRESTKey($current_key);
+            $current_key = $keyinfo['key'];
+            $ratefree = $keyinfo['remaining'];
+            $tmhOAuth = new tmhOAuth(array(
+                'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+                'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+                'token' => $twitter_keys[$current_key]['twitter_user_token'],
+                'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+            ));
+        }
+
+        $params = array(
+            'user_id' => $this->id,
+            'include_entities' => 'false',
+        );
+
+        $code = $tmhOAuth->user_request(array(
+            'method' => 'GET',
+            'url' => $tmhOAuth->url('1.1/users/show'),
+            'params' => $params
+        ));
+
+        $ratefree--;
+
+        $reset_connection = false;
+
+        if ($tmhOAuth->response['code'] == 200) {
+            $data = json_decode($tmhOAuth->response['response'], true);
+
+            if (is_array($data) && empty($data)) {
+                $this->fromJSON($data);
+            }
+
+        } else if ($retries < 4 && $tmhOAuth->response['code'] == 503) {
+            /* this indicates problems on the Twitter side, such as overcapacity. we slow down and retry the connection */
+            print "!";
+            sleep(7);
+            $i--;  // rewind
+            $retries++;
+            $reset_connection = true;
+        } else if ($retries < 4) {
+            print "\n";
+            print "Failure with code " . $tmhOAuth->response['response']['code'] . "\n";
+            var_dump($tmhOAuth->response['response']['info']);
+            var_dump($tmhOAuth->response['response']['error']);
+            var_dump($tmhOAuth->response['response']['errno']);
+            print "The above error may not be permanent. We will sleep and retry the request.\n";
+            sleep(7);
+            $i--;  // rewind
+            $retries++;
+            $reset_connection = true;
+//        } else {
+//            print "\n";
+//            print "Permanent error when querying the Twitter API. Please investigate the error output. Now stopping.\n";
+//            exit(1);
+        }
+
+        if ($reset_connection) {
+            $tmhOAuth = new tmhOAuth(array(
+                'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+                'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+                'token' => $twitter_keys[$current_key]['twitter_user_token'],
+                'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+            ));
+            $reset_connection = false;
+        }
+    }
 }
 
 class TweetQueue {
@@ -1763,13 +2033,13 @@ class TweetQueue {
                 $this->cacheBin($bin_name);
 
             $binlist[$bin_name] = array('tweets' => 1,
-                        'hashtags' => count($obj['tweet']->hashtags),
-                        'urls' => count($obj['tweet']->urls),
-                        'mentions' => count($obj['tweet']->user_mentions),
-                        'withheld' => count($obj['tweet']->withheld_in_countries),
-                        'places' => count($obj['tweet']->places),
-                        'media' => count($obj['tweet']->media)
-                    );
+                'hashtags' => count($obj['tweet']->hashtags),
+                'urls' => count($obj['tweet']->urls),
+                'mentions' => count($obj['tweet']->user_mentions),
+                'withheld' => count($obj['tweet']->withheld_in_countries),
+                'places' => count($obj['tweet']->places),
+                'media' => count($obj['tweet']->media)
+            );
         }
 
         // process the queue bin by bin
@@ -1966,7 +2236,7 @@ class TwitterRelations {
         if (!$this->id) {
             // Try to find this users id
             $q = $dbh->prepare("SELECT from_user_id FROM " . $bin_name . "_tweets " .
-                    "WHERE from_user_name = :screen_name");
+                "WHERE from_user_name = :screen_name");
 
             $q->execute(array(':screen_name' => $this->screen_name));
             $result = $q->fetch(PDO::FETCH_OBJ);
@@ -1978,8 +2248,12 @@ class TwitterRelations {
         }
 
         foreach ($this->users as $user) {
+            $u = new User($user);
+            if(!$u->isInBin($bin_name)) {
+                $u->save($dbh, $bin_name);
+            }
             $q = $dbh->prepare(
-                    "INSERT INTO " . $bin_name . '_relations' . "
+                "INSERT INTO " . $bin_name . '_relations' . "
 				(user1_id, user1_name, type, observed_at, user2_id, user2_name, user2_realname)
 				VALUES 
 				(:user1_id, :user1_name, :type, :observed_at, :user2_id, :user2_name, :user2_realname);");
@@ -2014,6 +2288,70 @@ class TwitterRelations {
         }
     }
 
+}
+
+// fraisier
+class TwitterRetweet {
+
+    private $tweet_id;
+    private $observed_at;
+    private $users;
+
+    public function __construct($tweet_id, $users_ids, $observed_at) {
+
+        $this->tweet_id = $tweet_id;
+        $this->users = $users_ids;
+        $this->observed_at = $observed_at;
+    }
+
+    public function save(PDO $dbh, $bin_name) {
+        foreach ($this->users as $user_id) {
+            $u = new User($user_id, $bin_name);
+            $u->save($dbh, $bin_name);
+
+            $q = $dbh->prepare(
+                "INSERT INTO " . $bin_name . '_retweets' . "
+				(tweet_id, observed_at, user_retweeting_id)
+				VALUES 
+				(:tweet_id, :observed_at, :user_retweeting_id);");
+            $q->bindParam(":tweet_id", $this->tweet_id, PDO::PARAM_STR);
+            $q->bindParam(":observed_at", $this->observed_at, PDO::PARAM_STR);
+            $q->bindParam(':user_retweeting_id', $user_id, PDO::PARAM_STR);
+            $q->execute();
+        }
+    }
+}
+
+// fraisier
+class TwitterLike {
+
+    private $tweet_id;
+    private $observed_at;
+    private $users;
+
+    public function __construct($tweet_id, $users_ids, $observed_at) {
+
+        $this->tweet_id = $tweet_id;
+        $this->users = $users_ids;
+        $this->observed_at = $observed_at;
+    }
+
+    public function save(PDO $dbh, $bin_name) {
+        foreach ($this->users as $user_id) {
+            $u = new User($user_id, $bin_name);
+            $u->save($dbh, $bin_name);
+
+            $q = $dbh->prepare(
+                "INSERT INTO " . $bin_name . '_likes' . "
+				(tweet_id, observed_at, user_liking_id)
+				VALUES 
+				(:tweet_id, :observed_at, :user_liking_id);");
+            $q->bindParam(":tweet_id", $this->tweet_id, PDO::PARAM_STR);
+            $q->bindParam(":observed_at", $this->observed_at, PDO::PARAM_STR);
+            $q->bindParam(':user_liking_id', $user_id, PDO::PARAM_STR);
+            $q->execute();
+        }
+    }
 }
 
 class UrlCollection implements IteratorAggregate {
@@ -2068,7 +2406,7 @@ function tracker_run() {
     global $dbuser, $dbpass, $database, $hostname, $tweetQueue;
 
     // We need the tcat_status table
-       
+
     create_error_logs();
 
     // We need the tcat_captured_phrases table
@@ -2202,12 +2540,12 @@ function tracker_run() {
 
     logit(CAPTURE . ".error.log", "connecting to API socket");
     $tmhOAuth = new tmhOAuth(array(
-                'consumer_key' => $twitter_consumer_key,
-                'consumer_secret' => $twitter_consumer_secret,
-                'token' => $twitter_user_token,
-                'secret' => $twitter_user_secret,
-                'host' => 'stream.twitter.com',
-            ));
+        'consumer_key' => $twitter_consumer_key,
+        'consumer_secret' => $twitter_consumer_secret,
+        'token' => $twitter_user_token,
+        'secret' => $twitter_user_secret,
+        'host' => 'stream.twitter.com',
+    ));
     $tmhOAuth->request_settings['headers']['Host'] = 'stream.twitter.com';
 
     if (CAPTURE == "track" || CAPTURE == "follow") {
@@ -2411,11 +2749,11 @@ function processtweets($capturebucket) {
                                     // logit(CAPTURE . ".error.log", "(debug) tweet with lng $tweet_lng and lat $tweet_lat versus (sw: " . $box['sw_lng'] . "," . $box['sw_lat'] . " ne: " . $box['ne_lng'] . "," . $box['ne_lat'] . ") falls outside the area");
                                 }
                             }
-                        } else { 
+                        } else {
 
                             // this is a gps tracking query, but the tweet has no gps geo data
                             // Twitter may have matched this tweet based on the user-defined location data
-                           
+
                             if (array_key_exists('place', $data) && is_array($data['place']) && array_key_exists('bounding_box', $data['place'])) {
 
                                 // Make a geoPHP object of the polygon(s) defining the place, by using a WKT (well-known text) string
@@ -2455,10 +2793,10 @@ function processtweets($capturebucket) {
                                 foreach ($boxes as $box) {
                                     // 'POLYGON((x1 y1, x1 y2, x2 y2, x2 y1, x1 y1))'
                                     $boxwkt = 'POLYGON((' . $box['sw_lng'] . ' ' . $box['sw_lat'] . ', '
-                                            . $box['sw_lng'] . ' ' . $box['ne_lat'] . ', '
-                                            . $box['ne_lng'] . ' ' . $box['ne_lat'] . ', '
-                                            . $box['ne_lng'] . ' ' . $box['sw_lat'] . ', '
-                                            . $box['sw_lng'] . ' ' . $box['sw_lat'] . '))';
+                                        . $box['sw_lng'] . ' ' . $box['ne_lat'] . ', '
+                                        . $box['ne_lng'] . ' ' . $box['ne_lat'] . ', '
+                                        . $box['ne_lng'] . ' ' . $box['sw_lat'] . ', '
+                                        . $box['sw_lng'] . ' ' . $box['sw_lat'] . '))';
                                     $versus = geoPHP::load($boxwkt, 'wkt');
                                     $contains = $place->contains($versus);
                                     $boxcontains = $versus->contains($place);
@@ -2609,11 +2947,11 @@ function getRemainingForKey($current_key, $resource = 'statuses', $query = 'look
 
     // rate limit test
     $tmhOAuth = new tmhOAuth(array(
-                'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
-                'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
-                'token' => $twitter_keys[$current_key]['twitter_user_token'],
-                'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
-            ));
+        'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+        'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+        'token' => $twitter_keys[$current_key]['twitter_user_token'],
+        'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+    ));
     $params = array(
         'resources' => $resource,
     );
@@ -2622,7 +2960,7 @@ function getRemainingForKey($current_key, $resource = 'statuses', $query = 'look
         'method' => 'GET',
         'url' => $tmhOAuth->url('1.1/application/rate_limit_status'),
         'params' => $params
-            ));
+    ));
 
     if ($tmhOAuth->response['code'] == 200) {
         $data = json_decode($tmhOAuth->response['response'], true);

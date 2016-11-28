@@ -14,87 +14,91 @@ require __DIR__ . '/../../capture/common/tmhOAuth/tmhOAuth.php';
 
 
 // DEFINE LOOKUP PARAMETERS HERE
+if (!count(debug_backtrace())) {
+    $bin_name = '';            // name of the bin
+    $idfile = 'ids.txt';              // path to the input file name. the file must contain only a tweet ID on every line
+    $type = 'lookup';          // specify 'lookup'
 
-$bin_name = '';            // name of the bin
-$idfile = '';              // path to the input file name. the file must contain only a tweet ID on every line
-$type = 'lookup';          // specify 'lookup'
+    if (empty($bin_name))
+        die("bin_name not set\n");
+    if (empty($idfile))
+        die("idfile not set\n");
 
-if (empty($bin_name))
-    die("bin_name not set\n");
-if (empty($idfile))
-    die("idfile not set\n");
+    if (dbserver_has_utf8mb4_support() == false) {
+        die("DMI-TCAT requires at least MySQL version 5.5.3 - please upgrade your server\n");
+    }
 
-if (dbserver_has_utf8mb4_support() == false) {
-    die("DMI-TCAT requires at least MySQL version 5.5.3 - please upgrade your server\n");
-}
+    $querybin_id = queryManagerBinExists($bin_name);
+    $idlist = preg_split('/\R/', file_get_contents($idfile));
+    if (!is_array($idlist) || empty($idlist)) {
+        die("idfile invalid\n");
+    }
+    if (file_exists($idfile . ".inaccessible")) {
+        print "A file called " . $idfile . ".inaccessible" . " already exists on disk. We need this file to store information. Please back up this file or remove it manually. Exiting.\n";
+        exit(1);
+    }
+    $count_fullset = count($idlist);
 
-$querybin_id = queryManagerBinExists($bin_name);
-$idlist = preg_split('/\R/', file_get_contents($idfile));
-if (!is_array($idlist) || empty($idlist)) {
-    die("idfile invalid\n");
-}
-if (file_exists($idfile . ".inaccessible")) {
-    print "A file called " . $idfile . ".inaccessible" . " already exists on disk. We need this file to store information. Please back up this file or remove it manually. Exiting.\n";
-    exit(1);
-}
-$count_fullset = count($idlist);
-
-$all_users = $all_tweet_ids = array();
+    $all_users = $all_tweet_ids = array();
 
 // ----- connection -----
-$dbh = pdo_connect();
-create_bin($bin_name, $dbh);
+    $dbh = pdo_connect();
+    create_bin($bin_name, $dbh);
 
-/* filter out the ids already in the database */
-$ids_in_db = array();
-for ($i = 0; $i < sizeof($idlist); $i += 3000) {
-    $query = "select id from $bin_name" . '_tweets where id in ( ' . $idlist[$i];
-    $n = $i + 1;
-    while ($n < $i + 3000 && $n < sizeof($idlist)) {
-        if (!array_key_exists($n, $idlist) || !is_numeric($idlist[$n])) break;
-        $query .= ", " . $idlist[$n];
-        $n++;
+    /* filter out the ids already in the database */
+    $ids_in_db = array();
+    for ($i = 0; $i < sizeof($idlist); $i += 3000) {
+        $query = "select id from $bin_name" . '_tweets where id in ( ' . $idlist[$i];
+        $n = $i + 1;
+        while ($n < $i + 3000 && $n < sizeof($idlist)) {
+            if (!array_key_exists($n, $idlist) || !is_numeric($idlist[$n])) break;
+            $query .= ", " . $idlist[$n];
+            $n++;
+        }
+        $query .= ")";
+        $rec = $dbh->prepare($query);
+        $rec->execute();
+        $results = $rec->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($results as $f => $v) {
+            $ids_in_db[] = $v;
+        }
     }
-    $query .= ")";
-    $rec = $dbh->prepare($query);
-    $rec->execute();
-    $results = $rec->fetchAll(PDO::FETCH_COLUMN);
-    foreach ($results as $f => $v) {
-        $ids_in_db[] = $v;
+    $orig_size = count($idlist);
+    $idlist = array_diff($idlist, $ids_in_db);
+    $idlist = array_values($idlist);            // re-index is needed
+    $new_size = count($idlist);
+    $count_existed = 0;
+    $count_missing = 0;
+    if ($new_size < $orig_size) {
+        $count_existed = $orig_size - $new_size;
+        print "skipping $count_existed tweets from id list because they are already in our database\n";
     }
-}
-$orig_size = count($idlist);
-$idlist = array_diff($idlist, $ids_in_db);
-$idlist = array_values($idlist);			// re-index is needed
-$new_size = count($idlist);
-$count_existed = 0;
-$count_missing = 0;
-if ($new_size < $orig_size) {
-    $count_existed = $orig_size - $new_size;
-    print "skipping $count_existed tweets from id list because they are already in our database\n";
-}
 
-$tweetQueue = new TweetQueue();
+    $tweetQueue = new TweetQueue();
 
-queryManagerCreateBinFromExistingTables($bin_name, $querybin_id, 'import tweetset');
+    queryManagerCreateBinFromExistingTables($bin_name, $querybin_id, 'import tweetset');
 
-search($idlist);
+    search($idlist);
 
-$retries = 0;
+    $retries = 0;
 
-print "\n" . str_repeat("=", 83) . "\n\n";
+    print "\n" . str_repeat("=", 83) . "\n\n";
 
-printf("Total number of tweets in your ID file:                                    %8d\n", $count_fullset);
-printf("Number of new tweets inserted into the bin:                                %8d\n", $count_fullset - $count_existed - $count_missing);
-printf("Number of tweets skipped because they already existed in bin:              %8d\n", $count_existed);
-printf("Number of tweets skipped because they are no longer accessible:            %8d\n", $count_missing);
+    printf("Total number of tweets in your ID file:                                    %8d\n", $count_fullset);
+    printf("Number of new tweets inserted into the bin:                                %8d\n", $count_fullset - $count_existed - $count_missing);
+    printf("Number of tweets skipped because they already existed in bin:              %8d\n", $count_existed);
+    printf("Number of tweets skipped because they are no longer accessible:            %8d\n", $count_missing);
 
-if (file_exists($idfile . ".inaccessible")) {
-    printf("The ids of tweets who can not (or no longer) be accessed have been written to file: " . $idfile . ".inaccessible" . "\n");
+    if (file_exists($idfile . ".inaccessible")) {
+        printf("The ids of tweets who can not (or no longer) be accessed have been written to file: " . $idfile . ".inaccessible" . "\n");
+    }
 }
 
 function search($idlist) {
     global $twitter_keys, $current_key, $all_users, $all_tweet_ids, $bin_name, $idfile, $dbh, $tweetQueue, $count_missing;
+    if($tweetQueue === NULL) {
+        $tweetQueue = new TweetQueue();
+    }
 
     $keyinfo = getRESTKey(0);
     $current_key = $keyinfo['key'];
@@ -103,27 +107,27 @@ function search($idlist) {
     print "\ncurrent key $current_key ratefree $ratefree\n";
 
     $tmhOAuth = new tmhOAuth(array(
+        'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+        'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+        'token' => $twitter_keys[$current_key]['twitter_user_token'],
+        'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+    ));
+
+    // by hundred
+    for ($i = 0; $i < sizeof($idlist); $i += 100) {
+
+        if ($ratefree <= 0 || $ratefree % 10 == 0) {
+            print "\n";
+            $keyinfo = getRESTKey($current_key);
+            $current_key = $keyinfo['key'];
+            $ratefree = $keyinfo['remaining'];
+            $tmhOAuth = new tmhOAuth(array(
                 'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
                 'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
                 'token' => $twitter_keys[$current_key]['twitter_user_token'],
                 'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
             ));
-
-    // by hundred
-    for ($i = 0; $i < sizeof($idlist); $i += 100) {
-
-	    if ($ratefree <= 0 || $ratefree % 10 == 0) {
-            print "\n";
-    		$keyinfo = getRESTKey($current_key);
-    		$current_key = $keyinfo['key'];
-    		$ratefree = $keyinfo['remaining'];
-    		$tmhOAuth = new tmhOAuth(array(
-                		'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
-                		'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
-                		'token' => $twitter_keys[$current_key]['twitter_user_token'],
-                		'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
-            		));
-	    }
+        }
 
         $verify = array();      // used to track missing tweets
         $q = $idlist[$i];
@@ -145,9 +149,9 @@ function search($idlist) {
             'method' => 'GET',
             'url' => $tmhOAuth->url('1.1/statuses/lookup'),
             'params' => $params
-                ));
+        ));
 
-	    $ratefree--;
+        $ratefree--;
 
         $reset_connection = false;
 
@@ -177,10 +181,15 @@ function search($idlist) {
                     $all_users[] = $t->from_user_id;
                     $all_tweet_ids[] = $t->id;
                     $tweet_ids[] = $t->id;
-                    
-                    $tweetQueue->push($t, $bin_name);
 
+                    $tweetQueue->push($t, $bin_name);
+                    $u = new User($tweet["user"], $bin_name);
+                    $u->save($dbh, $bin_name);
+
+                    // récupération retweets
+                    get_retweets($t->id);
                 }
+
                 print ".";
             }
             $diff = array_diff($verify, $tweet_ids);
@@ -202,7 +211,7 @@ function search($idlist) {
             $retries++;
             $reset_connection = true;
         } else if ($retries < 4) {
-            print "\n"; 
+            print "\n";
             print "Failure with code " . $tmhOAuth->response['response']['code'] . "\n";
             var_dump($tmhOAuth->response['response']['info']);
             var_dump($tmhOAuth->response['response']['error']);
@@ -212,19 +221,19 @@ function search($idlist) {
             $i--;  // rewind
             $retries++;
             $reset_connection = true;
-        } else {
-            print "\n";
-            print "Permanent error when querying the Twitter API. Please investigate the error output. Now stopping.\n";
-            exit(1);
+//        } else {
+//            print "\n";
+//            print "Permanent error when querying the Twitter API. Please investigate the error output. Now stopping.\n";
+//            exit(1);
         }
 
         if ($reset_connection) {
             $tmhOAuth = new tmhOAuth(array(
-                        'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
-                        'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
-                        'token' => $twitter_keys[$current_key]['twitter_user_token'],
-                        'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
-                    ));
+                'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+                'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+                'token' => $twitter_keys[$current_key]['twitter_user_token'],
+                'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+            ));
             $reset_connection = false;
         } else {
             $tweetQueue->insertDB();
@@ -232,4 +241,82 @@ function search($idlist) {
 
     }
 }
+
+
+function get_retweets($tweet_id, $cursor = -1) {
+    print "getting retweets of $tweet_id\n";
+    global $twitter_keys, $current_key, $bin_name, $dbh;
+
+    $keyinfo = getRESTKey(0, 'statuses', 'retweeters/ids');
+    $current_key = $keyinfo['key'];
+    $ratefree = $keyinfo['remaining'];
+
+    print "\ncurrent key $current_key ratefree $ratefree\n";
+
+    $tmhOAuth = new tmhOAuth(array(
+        'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+        'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+        'token' => $twitter_keys[$current_key]['twitter_user_token'],
+        'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+    ));
+
+    $ratefree--;
+    if ($ratefree < 1 || $ratefree % 10 == 0) {
+        $keyinfo = getRESTKey($current_key, 'statuses', 'retweeters/ids');
+        $current_key = $keyinfo['key'];
+        $ratefree = $keyinfo['remaining'];
+        $tmhOAuth = new tmhOAuth(array(
+            'consumer_key' => $twitter_keys[$current_key]['twitter_consumer_key'],
+            'consumer_secret' => $twitter_keys[$current_key]['twitter_consumer_secret'],
+            'token' => $twitter_keys[$current_key]['twitter_user_token'],
+            'secret' => $twitter_keys[$current_key]['twitter_user_secret'],
+        ));
+    }
+
+    $params = array(
+        'cursor' => $cursor,
+        'id' => $tweet_id,
+    );
+
+    $tmhOAuth->user_request(array(
+        'method' => 'GET',
+        'url' => $tmhOAuth->url('1.1/statuses/retweeters/ids'),
+        'params' => $params
+    ));
+
+    if ($tmhOAuth->response['code'] == 200) {
+        $data = json_decode($tmhOAuth->response['response'], true);
+        $observed_at = strftime("%Y-%m-%d %H-%M-%S", date('U'));
+
+        $retweeters = $data['ids'];
+        $cursor = $data['next_cursor'];
+
+        echo count($retweeters) . " users found\n";
+
+        // store in db
+        $tr = new TwitterRetweet($tweet_id, $retweeters, $observed_at);
+        $tr->save($dbh, $bin_name);
+
+        // continue if there are still things to do
+        if (!empty($cursor) && $cursor != -1) {
+            sleep(1);
+            get_retweets($tweet_id, $cursor);
+        }
+    } else {
+        $error_code = json_decode($tmhOAuth->response['response'])->errors[0]->code;
+        if ($error_code == 130) {
+            print "Twitter is over capacity, sleeping 5 seconds before retry\n";
+            sleep(5);
+            get_retweets($tweet_id, $cursor);
+        } elseif ($error_code == 88) {
+            print "API key rate limit exceeded, sleeping 60 seconds before retry\n";
+            sleep(60);
+            get_retweets($tweet_id, $cursor);
+        } else {
+            echo "\nAPI error: " . $tmhOAuth->response['response'] . "\n";
+        }
+    }
+}
+
+
 ?>
